@@ -1,0 +1,170 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Socket.IO chat</title>
+
+    <style>
+      .container { margin-top: 50px }
+      #messages, #users { list-style-type: none; }
+      .myMessage { background: #F5F5F5; border-radius: 25px; padding: 8px; margin-bottom: 5px; font-weight: bold;}
+      .chat .panel-footer input{ height: 33px; }
+      .chat .panel-body { height: 450px; overflow-y: scroll;}
+      .users-online .panel-body { height: 450px; overflow-y: scroll;}
+      .users-online {margin-top: 20px;}
+      #users li{ margin-left: -25px;}
+      .input-group span:hover { cursor: pointer; }
+    </style>
+
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+    <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+
+  </head>
+  <body>
+
+    <div class="container">
+        <div class="row">
+
+                <div class="col-md-5 chat">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Chat Application</h3>
+                        </div>
+                        <div class="panel-body" id="chat">
+                            <ul id="messages"></ul>
+                        </div>
+                        <div class="panel-footer">
+                            <form action="">
+                              <input id="m" autocomplete="off" class="col-md-10" /><button class="btn btn-default">Send</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+
+
+                <div class="input-group col-md-3 col-md-push-1" id="UserName">
+                  <input id="username" type="text" class="form-control" placeholder="Username" aria-describedby="submit-username">
+                  <span class="input-group-addon" id="submit-username">Enter Chat</span>
+                </div>
+
+
+
+                <div class="col-md-3 col-md-push-1 users-online">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Users online</h3>
+                        </div>
+                        <div class="panel-body" id="users-online">
+                            <ul id="users"></ul>
+                        </div>
+                    </div>
+                </div>
+
+        </div>
+    </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+  <script>
+    var socket = io();
+    var nickName = "";
+    var isTyping = false;
+
+    function appendMessage (msg) {
+        $('#messages').append($('<li class=\"myMessage\"">').text(msg));
+        var objDiv = document.getElementById("chat");
+        objDiv.scrollTop = objDiv.scrollHeight;
+    }
+
+    function appendUser (username) {
+        $('#users').append($('<li>').text(username));
+    }
+
+    function RemoveUser(username){
+        $( "#users li" ).each(function( index ) {
+            if ($( this ).text() === username){
+                $(this).remove();
+            }
+        });
+    }
+
+    function WriteTypingUsers (users) {
+        msg = "";
+        for (i = 0; i < users.length; i++) { 
+            msg +=  users[i];
+            if (i < users.length - 1)
+                msg += ", ";
+        }
+        if (users.length > 1)
+            msg += " are typing...";
+        else if (users.length === 1)
+            msg += " is typing...";
+
+        $("#typing").remove();
+        
+        if (msg !== ""){
+            $('#messages').append($('<li id=\"typing\"">').text(msg));
+        }
+        var objDiv = document.getElementById("chat");
+        objDiv.scrollTop = objDiv.scrollHeight;
+    }
+
+    $( "#submit-username" ).click(function() {
+        nickName = $("#username").val();
+        if(nickName !== ""){
+            $('#username').val('');
+            $('#UserName').html("Logged in as: " + nickName);
+            socket.emit('new user', nickName);
+        }
+    });
+
+    $( "#m" ).on('input', function() {
+        if ($('#m').val() !== "" && !isTyping){
+            isTyping = true;
+            socket.emit("typing");
+        }
+        else if ($('#m').val() === "" && isTyping){
+            isTyping = false;
+            socket.emit("not typing");
+        }
+    });
+
+    $('form').submit(function(){
+        if(nickName !== ""){
+            isTyping = false;
+            socket.emit('chat message', $('#m').val());
+            appendMessage(nickName + ": " + $('#m').val());
+            $('#m').val('');
+        }
+        return false;
+    });
+
+    socket.on('chat message', function(data){
+        appendMessage(data.user + ": " + data.msg);
+        WriteTypingUsers(data.usersTyping);
+    });
+
+    socket.on('new user connected', function(userName){
+        appendUser(userName);
+        appendMessage("<< " + userName + " joined the chat >>");
+    });
+
+    socket.on('user disconnected', function(userName){
+        appendMessage("<< " + userName + " left the chat >>");
+        RemoveUser(userName);
+    });
+
+    socket.on('list users', function(users){
+        for (i = 0; i < users.length; i++) { 
+            appendUser(users[i]);
+        }
+    });
+
+    socket.on('users typing', function(users){
+        WriteTypingUsers(users);
+    });
+
+  </script>
+  </body>
+</html>
